@@ -13,6 +13,7 @@ public enum ErrorCode {
     PASSWORD_INVALID(1004, "Password must be at least 8 characters", HttpStatus.BAD_REQUEST),
     USER_NOT_EXISTED(1005, "User not existed !!!", HttpStatus.NOT_FOUND),
     UNAUTHENTICATED(1006, "Unauthenticated !!!", HttpStatus.UNAUTHORIZED),
+    UNAUTHORIZED(1007, "You do not have permission !!!", HttpStatus.FORBIDDEN),
     INVALID_HEADER_JWT(9998, "INVALID_HEADER_JWT !!!", HttpStatus.UNAUTHORIZED)
     ;
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

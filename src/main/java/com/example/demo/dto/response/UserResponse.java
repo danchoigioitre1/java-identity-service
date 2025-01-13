@@ -1,5 +1,7 @@
 package com.example.demo.dto.response;
 
+import com.example.demo.entity.Role;
+import jakarta.persistence.ManyToMany;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -17,5 +19,5 @@ public class UserResponse {
      String firstName;
      String lastName;
      LocalDate dob;
-     Set<String> roles;
+     Set<Role> roles;
 }
