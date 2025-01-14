@@ -1,5 +1,7 @@
 package com.example.demo.dto.request;
 
+import com.example.demo.exception.ErrorCode;
+import com.example.demo.validator.DobConstraint;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -18,6 +20,6 @@ public class UserCreationRequest {
     String password;
     String firstName;
     String lastName;
-
+    @DobConstraint(min = 18, message = "INVALID_DOB")
     LocalDate dob;
 }
