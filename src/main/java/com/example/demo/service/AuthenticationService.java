@@ -108,20 +108,20 @@ public class AuthenticationService {
     }
 
     public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
-        var signedToken = verifyToken(request.getToken());
+        SignedJWT signedToken = verifyToken(request.getToken());
 
-        var jit = signedToken.getJWTClaimsSet().getJWTID();
-        var expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
+        String jit = signedToken.getJWTClaimsSet().getJWTID();
+        Date expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
         InvalidatedToken invalidatedToken = new InvalidatedToken().builder()
                 .id(jit)
                 .expiryTime(expiryTime)
                 .build();
         invalidatedTokenRepository.save(invalidatedToken);
 
-        var username = signedToken.getJWTClaimsSet().getSubject();
+        String username = signedToken.getJWTClaimsSet().getSubject();
         User user = userRepository.findUserByUsername(username).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
-        var token = generateToken(user);
+        String token = generateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
                 .authenticate(true)
