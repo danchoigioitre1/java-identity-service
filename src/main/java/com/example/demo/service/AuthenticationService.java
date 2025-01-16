@@ -22,6 +22,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +40,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class AuthenticationService {
     UserRepository userRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
@@ -46,6 +48,14 @@ public class AuthenticationService {
     @NonFinal
     @Value("${jwt.signerKey}")
     protected String SIGNER_KEY;
+
+    @NonFinal
+    @Value("${jwt.valid-duration}")
+    protected long VALID_DURATION;
+
+    @NonFinal
+    @Value("${jwt.refreshable-duration}")
+    protected long REFRESHABLE_DURATION;
 
     public AuthenticationResponse authenticate(AuthenticationRequest request){
         var user = userRepository.findUserByUsername(request.getUsername())
@@ -75,7 +85,7 @@ public class AuthenticationService {
                 .issuer("NVA.com")
                 .issueTime(new Date())
                 .expirationTime(new Date(
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()
+                        Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()
                 ))
                 .claim("scope", buildScope(user))
                 .jwtID(UUID.randomUUID().toString())
@@ -98,7 +108,7 @@ public class AuthenticationService {
         var token = request.getToken();
         boolean isValid = true;
         try {
-            verifyToken(token);
+            verifyToken(token, false);
         } catch (AppException e){
            isValid = false;
         }
@@ -108,7 +118,7 @@ public class AuthenticationService {
     }
 
     public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
-        SignedJWT signedToken = verifyToken(request.getToken());
+        SignedJWT signedToken = verifyToken(request.getToken(), true);
 
         String jit = signedToken.getJWTClaimsSet().getJWTID();
         Date expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
@@ -130,24 +140,32 @@ public class AuthenticationService {
 
 
     public void logout(LogoutRequest request) throws ParseException, JOSEException {
-        var signedToken = verifyToken(request.getToken());
-        String jit = signedToken.getJWTClaimsSet().getJWTID();
-        Date expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
+        try {
+            // isRefresh = true => Khi nguoi dung logout, neu con trong tho gian refresh thi van dua xuong Invalid table
+            var signedToken = verifyToken(request.getToken(), true);
+            String jit = signedToken.getJWTClaimsSet().getJWTID();
+            Date expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
 
-        InvalidatedToken invalidatedToken = new InvalidatedToken().builder()
-                .expiryTime(expiryTime)
-                .id(jit)
-                .build();
+            InvalidatedToken invalidatedToken = new InvalidatedToken().builder()
+                    .expiryTime(expiryTime)
+                    .id(jit)
+                    .build();
 
-        invalidatedTokenRepository.save(invalidatedToken);
+            invalidatedTokenRepository.save(invalidatedToken);
+
+        } catch (AppException exception){
+            log.info("Token already expiry !!!");
+        }
     }
 
-    private SignedJWT verifyToken(String token) throws JOSEException, ParseException {
+    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
 
         SignedJWT signedJWT = SignedJWT.parse(token);
 
-        Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        Date expirationTime = isRefresh
+                ? new Date(signedJWT.getJWTClaimsSet().getIssueTime().toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS).toEpochMilli())
+                : signedJWT.getJWTClaimsSet().getExpirationTime();
 
         var verified = signedJWT.verify(verifier);
 
